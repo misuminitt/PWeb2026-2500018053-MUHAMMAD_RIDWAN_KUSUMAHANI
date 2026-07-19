@@ -1,0 +1,19 @@
+<?php
+require 'functions.php';
+$action = $_GET['action'] ?? '';
+if ($_SERVER['REQUEST_METHOD']==='POST') {
+  $id=(int)($_POST['id']??0); $code=trim($_POST['code']??''); $name=trim($_POST['name']??''); $category=trim($_POST['category']??''); $unit=trim($_POST['unit']??''); $min=max(0,(int)($_POST['min_stock']??0)); $stock=max(0,(int)($_POST['stock']??0));
+  if($code===''||$name===''||$category===''||$unit===''){ flash('error','Semua data wajib diisi.'); header('Location: products.php'); exit; }
+  try { if($id){$s=$pdo->prepare('UPDATE products SET code=?,name=?,category=?,unit=?,min_stock=?,stock=? WHERE id=?');$s->execute([$code,$name,$category,$unit,$min,$stock,$id]);flash('success','Data barang berhasil diperbarui.');} else {$s=$pdo->prepare('INSERT INTO products(code,name,category,unit,min_stock,stock) VALUES(?,?,?,?,?,?)');$s->execute([$code,$name,$category,$unit,$min,$stock]);flash('success','Barang baru berhasil ditambahkan.');} } catch(PDOException $ex){flash('error','Kode barang sudah digunakan atau data tidak valid.');}
+  header('Location: products.php'); exit;
+}
+if($action==='delete'){ $id=(int)($_GET['id']??0); $pdo->prepare('DELETE FROM products WHERE id=?')->execute([$id]); flash('success','Barang berhasil dihapus.'); header('Location: products.php'); exit; }
+$q=trim($_GET['q']??'');
+if($q!==''){$s=$pdo->prepare('SELECT * FROM products WHERE code LIKE ? OR name LIKE ? OR category LIKE ? ORDER BY id DESC');$like="%$q%";$s->execute([$like,$like,$like]);$products=$s->fetchAll();} else {$products=$pdo->query('SELECT * FROM products ORDER BY id DESC')->fetchAll();}
+$edit=null;if($action==='edit'){$s=$pdo->prepare('SELECT * FROM products WHERE id=?');$s->execute([(int)($_GET['id']??0)]);$edit=$s->fetch();}
+layoutStart('Data Barang','barang');
+echo '<section class="grid form-list"><div class="card"><div class="card-head"><h2>'.($edit?'Edit Barang':'Tambah Barang').'</h2></div><form method="post" class="form"><input type="hidden" name="id" value="'.($edit['id']??'').'"><label>Kode Barang<input name="code" required value="'.e($edit['code']??'').'" placeholder="BRG-006"></label><label>Nama Barang<input name="name" required value="'.e($edit['name']??'').'" placeholder="Nama barang"></label><div class="form-row"><label>Kategori<input name="category" required value="'.e($edit['category']??'').'" placeholder="ATK"></label><label>Satuan<input name="unit" required value="'.e($edit['unit']??'').'" placeholder="Pcs"></label></div><div class="form-row"><label>Stok Minimum<input type="number" min="0" name="min_stock" value="'.e((string)($edit['min_stock']??5)).'"></label><label>Stok Awal<input type="number" min="0" name="stock" value="'.e((string)($edit['stock']??0)).'"></label></div><button class="btn primary">Simpan Barang</button>'.($edit?'<a class="btn ghost" href="products.php">Batal</a>':'').'</form></div>';
+echo '<div class="card"><div class="card-head"><h2>Daftar Barang</h2><form class="search"><input name="q" value="'.e($q).'" placeholder="Cari barang..."><button class="btn">Cari</button></form></div><div class="table-wrap"><table><thead><tr><th>Kode</th><th>Nama</th><th>Kategori</th><th>Stok</th><th>Aksi</th></tr></thead><tbody>';
+foreach($products as $p){$status=$p['stock']<=$p['min_stock']?'<span class="badge danger">'.$p['stock'].' '.e($p['unit']).'</span>':'<span class="badge success">'.$p['stock'].' '.e($p['unit']).'</span>';echo '<tr><td>'.e($p['code']).'</td><td><b>'.e($p['name']).'</b></td><td>'.e($p['category']).'</td><td>'.$status.'</td><td class="actions"><a href="?action=edit&id='.$p['id'].'">Edit</a><a class="delete" data-confirm="Hapus barang ini?" href="?action=delete&id='.$p['id'].'">Hapus</a></td></tr>';}
+if(!$products)echo '<tr><td colspan="5" class="empty">Data tidak ditemukan.</td></tr>';
+echo '</tbody></table></div></div></section>';layoutEnd();
